@@ -7,6 +7,7 @@ from tqdm import tqdm
 from scraper.amazon_scraper_api import AmazonScraperAPI
 from scraper.simplify_scraper import SimplifyScraper
 from scraper.db import JobDatabase
+from scraper.queue_publisher import JobQueuePublisher
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -90,8 +91,8 @@ if __name__ == "__main__":
                         help='Job location')
     parser.add_argument('--limit', type=int, default=50,
                         help='Maximum jobs per company')
-    parser.add_argument('--save-to', type=str, default='both', choices=['db', 'file', 'both'],
-                        help='Where to save results: db, file, or both')
+    parser.add_argument('--save-to', type=str, default='queue', choices=['db', 'file', 'both', 'queue'],
+                        help='Where to save results: queue (default, publishes to RabbitMQ), db (direct database), file, or both (file+db)')
 
     args = parser.parse_args()
 
@@ -106,11 +107,16 @@ if __name__ == "__main__":
     print(f"Limit per company: {args.limit}")
     print(f"{'='*60}\n")
 
-    all_jobs = []
+    # Scrape jobs by company
+    jobs_by_company = {}
     for company in tqdm(companies, desc="Scraping", unit="company"):
         jobs = scrape_company(company, args.keywords, args.location, args.limit)
-        all_jobs.extend(jobs)
+        jobs_by_company[company] = jobs
         tqdm.write(f"✓ {company.upper()}: {len(jobs)} jobs")
+
+    all_jobs = []
+    for jobs in jobs_by_company.values():
+        all_jobs.extend(jobs)
 
     print(f"\n{'='*60}")
     print(f"SCRAPING COMPLETE")
@@ -118,12 +124,30 @@ if __name__ == "__main__":
     print(f"Total jobs scraped: {len(all_jobs)}")
 
     if all_jobs:
+        # Publish to RabbitMQ (default)
+        if args.save_to == 'queue':
+            rabbitmq_url = os.getenv('RABBITMQ_URL', 'amqp://jobqueue:jobqueue_password@rabbitmq:5672/')
+            publisher = JobQueuePublisher(rabbitmq_url)
+
+            try:
+                if publisher.connect():
+                    # Publish jobs by company (separate messages per source)
+                    for company, jobs in jobs_by_company.items():
+                        if jobs:
+                            publisher.publish_jobs(jobs, company)
+                    publisher.close()
+                    print(f"Published {len(all_jobs)} jobs to RabbitMQ queue")
+                else:
+                    print(f"Failed to connect to RabbitMQ - jobs not saved")
+            except Exception as e:
+                print(f"Failed to publish to RabbitMQ: {e}")
+
         # Save to file
         if args.save_to in ['file', 'both']:
             filepath = save_results(all_jobs)
             print(f"Results saved to file: {filepath}")
 
-        # Save to database
+        # Save to database (direct)
         if args.save_to in ['db', 'both']:
             db_url = os.getenv('DATABASE_URL', 'postgresql://scraper:scraper_password@localhost:5432/jobs_db')
             try:

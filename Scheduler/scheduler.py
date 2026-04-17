@@ -26,13 +26,12 @@ def run_scraper():
         result = subprocess.run(
             ["docker", "run", "--rm",
              "--network", "database_default",
-             "-e", "DATABASE_URL=postgresql://scraper:scraper_password@jobs-postgres:5432/jobs_db",
-             "-v", f"{SCRAPER_PATH}/output:/app/output",
+             "-e", "RABBITMQ_URL=amqp://jobqueue:jobqueue_password@job-rabbitmq:5672/",
              "job-scraper",
              "python", "main.py",
              "--companies", "amazon,simplify",
              "--limit", "100",
-             "--save-to", "db"],
+             "--save-to", "queue"],
             capture_output=True,
             text=True,
             timeout=600
