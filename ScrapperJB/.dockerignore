@@ -1,0 +1,28 @@
+# Exclude these from Docker build context (faster builds, smaller context)
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Don't copy existing output or data
+output/
+simplify_data/
+
+# Development files
+.git/
+.gitignore
+*.md
+test_*.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

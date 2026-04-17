@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  scheduler:
+    build: .
+    image: job-scheduler:latest
+    container_name: job-scheduler
+    ports:
+      - "8001:8001"
+    volumes:
+      # Mount Docker socket to run scraper containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount scraper output directory
+      - ../ScrapperJB/output:/scraper/output
+    restart: unless-stopped
+    environment:
+      - TZ=UTC

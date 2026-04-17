@@ -1,0 +1,56 @@
+# Query all jobs from both sources
+query GetAllJobs {
+  scrapeJobs(
+    companies: "amazon,simplify"
+    keywords: "software engineer"
+    limit: 50
+  ) {
+    count
+    companies
+    timestamp
+    jobs {
+      title
+      company
+      location
+      jobUrl
+      category
+      scrapedAt
+    }
+  }
+}
+
+# Query only Simplify jobs
+query GetSimplifyJobs {
+  scrapeJobs(
+    companies: "simplify"
+    limit: 100
+  ) {
+    count
+    jobs {
+      title
+      company
+      location
+      jobUrl
+    }
+  }
+}
+
+# Query Amazon with specific keywords
+query GetAmazonPythonJobs {
+  scrapeJobs(
+    companies: "amazon"
+    keywords: "python developer"
+    location: "Seattle"
+    limit: 20
+  ) {
+    count
+    companies
+    jobs {
+      title
+      company
+      location
+      jobUrl
+      description
+    }
+  }
+}

@@ -1,0 +1,75 @@
+================================================================================
+FRONTEND ERROR LOG
+================================================================================
+
+Date: 2026-04-09
+Project: Job Board Frontend (Next.js + urql)
+
+================================================================================
+ERROR #1: urql Client Initialization Error
+================================================================================
+
+ERROR MESSAGE:
+--------------
+Unhandled Runtime Error
+TypeError: undefined is not an object (evaluating 'e.reduceRight')
+
+Call Stack:
+eval
+[native code]
+(app-pages-browser)/./app/providers.tsx
+file:///Users/shruti/Documents/Projects/Personal Projects/MyAI/Frontend/.next/static/chunks/app/layout.js (50:5)
+
+CAUSE:
+------
+The urql client was not properly configured with exchanges. The createClient
+function requires explicit exchange configuration when using urql v4+.
+
+ORIGINAL CODE (BROKEN):
+-----------------------
+'use client'
+
+import { createClient, Provider } from 'urql'
+
+const client = createClient({
+  url: 'http://localhost:8002/graphql',
+})
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return <Provider value={client}>{children}</Provider>
+}
+
+SOLUTION:
+---------
+Use Client constructor with explicit fetchExchange and wrap in useMemo to
+prevent recreation on every render.
+
+FIXED CODE:
+-----------
+'use client'
+
+import { useMemo } from 'react'
+import { Client, Provider, fetchExchange } from 'urql'
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const client = useMemo(
+    () =>
+      new Client({
+        url: 'http://localhost:8002/graphql',
+        exchanges: [fetchExchange],
+      }),
+    []
+  )
+
+  return <Provider value={client}>{children}</Provider>
+}
+
+REQUIRED DEPENDENCIES:
+---------------------
+- urql: ^4.1.0
+- @urql/core: ^5.0.0
+- graphql: ^16.9.0
+- wonka: ^6.3.4
+
+STATUS: RESOLVED
+================================================================================
