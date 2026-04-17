@@ -5,9 +5,8 @@ services:
     ports:
       - "5672:5672"      # AMQP port
       - "15672:15672"    # Management UI
-    environment:
-      - RABBITMQ_DEFAULT_USER=jobqueue
-      - RABBITMQ_DEFAULT_PASS=jobqueue_password
+    env_file:
+      - .env
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -24,9 +23,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    environment:
-      - RABBITMQ_URL=amqp://jobqueue:jobqueue_password@rabbitmq:5672/
-      - DATABASE_URL=postgresql://scraper:scraper_password@jobs-postgres:5432/jobs_db
+    env_file:
+      - .env
     networks:
       - job-network
     restart: unless-stopped

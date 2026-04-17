@@ -13,5 +13,7 @@ services:
       # Mount scraper output directory
       - ../ScrapperJB/output:/scraper/output
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - TZ=UTC

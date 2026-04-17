@@ -2,6 +2,7 @@ import schedule
 import time
 import subprocess
 import logging
+import os
 from datetime import datetime
 from fastapi import FastAPI, BackgroundTasks
 from threading import Thread
@@ -22,11 +23,14 @@ def run_scraper():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting scraper job at {timestamp}")
 
+    # Get RabbitMQ URL from environment variable
+    rabbitmq_url = os.getenv('RABBITMQ_URL', 'amqp://jobqueue:jobqueue_password@job-rabbitmq:5672/')
+
     try:
         result = subprocess.run(
             ["docker", "run", "--rm",
              "--network", "database_default",
-             "-e", "RABBITMQ_URL=amqp://jobqueue:jobqueue_password@job-rabbitmq:5672/",
+             "-e", f"RABBITMQ_URL={rabbitmq_url}",
              "job-scraper",
              "python", "main.py",
              "--companies", "amazon,simplify",

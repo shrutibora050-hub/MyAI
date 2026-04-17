@@ -5,48 +5,7 @@ A distributed job scraping system that collects job postings from multiple sourc
 
 ## Architecture Diagram
 
-### Current Architecture (Transitioning to Message Queue)
-```
-┌─────────────┐
-│  Scheduler  │ ──triggers every 5hrs──> ┌──────────────┐
-│   :8001     │                           │  ScrapperJB  │
-└─────────────┘                           │    :8000     │
-                                          └──────┬───────┘
-                                                 │
-                                          writes directly to
-                                          (legacy - will migrate)
-                                                 │
-┌─────────────┐                                 ▼
-│  Frontend   │ ──queries via GraphQL──> ┌──────────────┐
-│ (Next.js)   │                           │ API Gateway  │
-└─────────────┘                           │    :8002     │
-                                          └──────┬───────┘
-                                                 │
-                                          reads/writes from
-                                                 │
-                                                 ▼
-                                          ┌──────────────┐
-                                          │  PostgreSQL  │
-                                          │    :5432     │
-                                          └──────────────┘
-                                                 ▲
-                                                 │
-                                           batch writes
-                                                 │
-                                          ┌──────┴───────┐
-                                          │ DB Manager   │
-                                          │  (consumer)  │
-                                          └──────▲───────┘
-                                                 │
-                                         consumes from queue
-                                                 │
-                                          ┌──────┴───────┐
-                                          │  RabbitMQ    │
-                                          │ :5672 :15672 │
-                                          └──────────────┘
-```
-
-### Future Architecture (After Migration)
+### Current Architecture (✅ Using RabbitMQ)
 ```
 ┌─────────────┐
 │  Scheduler  │ ──triggers──> ┌──────────────┐
@@ -313,22 +272,7 @@ A distributed job scraping system that collects job postings from multiple sourc
 
 ## Data Flow Summary
 
-### Current Scraping Flow (Legacy - Direct DB Write):
-```
-1. Scheduler (timer triggers at 00:00, 05:00, 10:00, 15:00, 20:00 UTC)
-   ↓
-2. Scheduler spawns ScrapperJB container via Docker
-   ↓
-3. ScrapperJB scrapes Amazon API + Simplify GitHub repo
-   ↓
-4. ScrapperJB writes jobs directly to PostgreSQL (legacy)
-   ↓
-5. ScrapperJB saves backup to /output directory
-   ↓
-6. Data available immediately via API Gateway
-```
-
-### Future Scraping Flow (With Message Queue):
+### Current Scraping Flow (Production):
 ```
 1. Scheduler triggers ScrapperJB
    ↓
@@ -350,6 +294,12 @@ A distributed job scraping system that collects job postings from multiple sourc
    ↓
 8. Data available via API Gateway for Frontend
 ```
+
+**Note:** ScrapperJB still supports legacy modes via the `--save-to` flag:
+- `--save-to queue` (default): Publishes to RabbitMQ
+- `--save-to db`: Direct PostgreSQL write (bypasses queue)
+- `--save-to file`: Saves to JSON file
+- `--save-to both`: Both file and direct DB write
 
 ### User Query Flow:
 ```
@@ -423,6 +373,43 @@ A distributed job scraping system that collects job postings from multiple sourc
 
 ## Running the System
 
+### Initial Setup (First Time Only)
+
+**1. Configure Environment Variables**
+
+Each service directory contains a `.env.example` file. Copy these to `.env` and update with your actual credentials:
+
+```bash
+# Database
+cp Database/.env.example Database/.env
+
+# DatabaseManager (RabbitMQ + Consumer)
+cp DatabaseManager/.env.example DatabaseManager/.env
+
+# API Gateway
+cp APIGateway/.env.example APIGateway/.env
+
+# Scheduler
+cp Scheduler/.env.example Scheduler/.env
+```
+
+**2. Update Passwords** (IMPORTANT!)
+
+Edit each `.env` file and replace the placeholder passwords with strong, secure passwords:
+
+```bash
+# Example: Database/.env
+POSTGRES_USER=scraper
+POSTGRES_PASSWORD=kJ8#mP2$vL9@qR5    # Change this!
+POSTGRES_DB=jobs_db
+```
+
+**Security Notes:**
+- Never commit `.env` files to git (already excluded via `.gitignore`)
+- Use different passwords for each service
+- Use strong, randomly generated passwords (16+ characters)
+- Keep passwords in a password manager
+
 ### Start all services (in order):
 ```bash
 # 1. Start database (must be first - creates network)
@@ -481,13 +468,15 @@ curl -u jobqueue:jobqueue_password http://localhost:15672/api/overview
 - [x] Message queue infrastructure (exchange, queue, routing keys)
 - [x] Batch insert logic with deduplication
 - [x] Error handling and retry logic
-
-### 🚧 In Progress:
-- [ ] **Update ScrapperJB to publish to RabbitMQ**
-  - Add `pika` to requirements.txt
-  - Create RabbitMQ publisher module
-  - Update main.py to publish jobs instead of direct DB writes
-  - Keep backward compatibility with `--save-to` flag
+- [x] **ScrapperJB RabbitMQ integration**
+  - [x] Added `pika` to requirements.txt
+  - [x] Created RabbitMQ publisher module
+  - [x] Updated main.py to publish jobs to RabbitMQ by default
+  - [x] Maintained backward compatibility with `--save-to` flag
+- [x] **Security improvements**
+  - [x] Moved all passwords to `.env` files
+  - [x] Added `.gitignore` to exclude secrets
+  - [x] Created `.env.example` templates for each service
 
 ### 📋 Future Enhancements:
 
@@ -496,7 +485,8 @@ curl -u jobqueue:jobqueue_password http://localhost:15672/api/overview
 - [ ] Add monitoring/metrics (Prometheus + Grafana)
 - [ ] Add dead letter queue for failed messages
 - [ ] Implement scraper health checks in Scheduler
-- [ ] Add environment variable validation
+- [ ] Replace default passwords with strong passwords
+- [ ] Add password rotation policy
 
 **Long Term:**
 - [ ] Scale to multiple scraper workers (horizontal scaling)
@@ -514,3 +504,43 @@ curl -u jobqueue:jobqueue_password http://localhost:15672/api/overview
 - [ ] Add automated testing (unit, integration, e2e)
 - [ ] Implement blue-green deployments
 - [ ] Add centralized logging (ELK stack)
+
+---
+
+## TechNewsScrapers (Separate Project)
+
+**Location:** [TechNewsScrapers/](TechNewsScrapers/)
+
+A standalone RSS-based scraper for tech/AI news sources. **Not integrated with the job scraper system.**
+
+### Sources (9 total):
+1. Hugging Face Blog - AI/ML research and models
+2. Google DeepMind Blog - AI research from DeepMind
+3. Apple Machine Learning Research - Apple's ML research
+4. Papers with Code - ML papers with implementation code
+5. The Batch (DeepLearning.AI) - Andrew Ng's AI newsletter
+6. TLDR AI - AI news newsletter
+7. The Neuron - AI newsletter
+8. The Rundown AI - AI newsletter
+9. Import AI - AI newsletter by Jack Clark
+
+### Output:
+- **Format:** CSV files
+- **Location:** `TechNewsScrapers/output/`
+- **Filename:** `tech_news_<timestamp>.csv`
+
+### Usage:
+```bash
+cd TechNewsScrapers
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Scrape all sources (limit 50 per source)
+python -m tech_news_scrapers --sources all --limit 50
+
+# Scrape specific sources
+python -m tech_news_scrapers --sources huggingface,deepmind --limit 20
+```
+
+**Note:** This is a standalone CSV exporter and does **not** integrate with PostgreSQL, RabbitMQ, or the API Gateway.

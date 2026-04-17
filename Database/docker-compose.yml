@@ -4,10 +4,9 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: jobs-postgres
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: jobs_db
-      POSTGRES_USER: scraper
-      POSTGRES_PASSWORD: scraper_password
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -16,7 +15,7 @@ services:
       - "5432:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U scraper -d jobs_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5

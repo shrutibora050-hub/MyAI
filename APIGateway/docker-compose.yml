@@ -9,8 +9,8 @@ services:
       - "8002:8002"
     networks:
       - database_default
-    environment:
-      - DATABASE_URL=postgresql://scraper:scraper_password@jobs-postgres:5432/jobs_db
+    env_file:
+      - .env
     restart: unless-stopped
 
 networks:
