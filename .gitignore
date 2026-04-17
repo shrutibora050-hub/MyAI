@@ -2,6 +2,15 @@
 .env
 **/.env
 
+# SSH keys (should never be in project directory)
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+sb050*
+sb9880*
+sb9980*
+
 # Python
 __pycache__/
 *.py[cod]
